@@ -9,31 +9,34 @@ app.use(express.static('dist'))
 const Person = require('./models/person')
 
 
-app.get('/api/persons', (request, response) =>{
+app.get('/api/persons', (request, response, next) =>{
     Person.find({})
-    .then(notes => {
-      response.json(notes)
+    .then(persons => {
+      response.json(persons)
     })
     .catch(error => next(error))
 })
 
 app.get('/info', (request, response) => {
     const time = new Date()
-    response.send(
-        `<p>Phonebook has info for ${persons.length} people</p>
-         <p>${time}</p>`
-    )
+    Person.find({})
+    .then(persons => {
+        response.send(
+            `<p>Phonebook has info for ${persons.length} people</p>
+            <p>${time}</p>`
+        )
+    })
 })
 
-app.get('/api/persons/:id', (request, response) => {
-    Person.find(request.params.id)
-        .then(notes => {
-            response.json(notes)
+app.get('/api/persons/:id', (request, response, next) => {
+    Person.findById(request.params.id)
+        .then(person => {
+            response.json(person)
         })
         .catch(error => next(error))
 })
 
-app.delete('/api/persons/:id', (request, response) => {
+app.delete('/api/persons/:id', (request, response, next) => {
     Person.findByIdAndDelete(request.params.id)
     .then(result => {
       response.status(204).end()
@@ -41,30 +44,54 @@ app.delete('/api/persons/:id', (request, response) => {
     .catch(error => next(error))
 })
 
-app.post('/api/persons/', (request, response) => {
-    const body = request.body
-    if(!body.name || !body.number) {
+app.post('/api/persons', (request, response, next) => {
+    const { name, number } = request.body
+    if(!name || !number) {
         return response.status(400).json({
             error: 'The name or number is missing'
         })
     }
-    Person.find({name : body.name})
-    .then(notes => {
-        return response.status(400).json({
-            error: 'The name already exists in the phonebook'
-        })
+    Person.find({name : name})
+    .then(person => {
+        if(person.length) {
+            console.log(person)
+            return response.status(400).json({
+                error: 'The name already exists in the phonebook'
+            }).end()
+        } else {
+            const person = new Person({
+                name: name,
+                number: number,
+            })
+            
+            person.save().then(savedPerson => {
+                return response.json(savedPerson)
+            })
+        }
     })
     .catch(error => next(error))
+})
 
-    const person = new Person({
-        name: body.name,
-        number: body.number,
-    })
-    
-    person.save().then(savedPerson => {
-        return response.json(savedPerson)
-    })
+app.put('/api/persons/:id', (request, response, next) => {
+    const { name, number } = request.body
 
+    Person.findOneAndUpdate({"name" : name})
+    .then(person => {
+        if (!person) {
+            return response.status(404).end()
+        }
+        person.name = name
+        person.number = number
+        person
+        .save()
+        .then(updatedPerson => {
+            return person.save().then((updatedPerson) => {
+            response.json(updatedPerson)
+        })})
+        .catch(error => next(error))
+
+    })
+    .catch(error => next(error))
 })
 
 const errorHandler = (error, request, response, next) => {
